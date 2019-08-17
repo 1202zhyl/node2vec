@@ -66,11 +66,15 @@ object Node2vec extends Serializable {
     
     graph = Graph(indexedNodes, indexedEdges)
             .mapVertices[NodeAttr] { case (vertexId, clickNode) =>
-              val (j, q) = GraphOps.setupAlias(clickNode.neighbors)
-              val nextNodeIndex = GraphOps.drawAlias(j, q)
-              clickNode.path = Array(vertexId, clickNode.neighbors(nextNodeIndex)._1)
-              
-              clickNode
+              if (clickNode != null) { // avoid null pointer exception.
+                val (j, q) = GraphOps.setupAlias(clickNode.neighbors)
+                val nextNodeIndex = GraphOps.drawAlias(j, q)
+                clickNode.path = Array(vertexId, clickNode.neighbors(nextNodeIndex)._1)
+
+                clickNode
+              } else {
+                NodeAttr()
+              }
             }
             .mapTriplets { edgeTriplet: EdgeTriplet[NodeAttr, EdgeAttr] =>
               val (j, q) = GraphOps.setupEdgeAlias(bcP.value, bcQ.value)(edgeTriplet.srcId, edgeTriplet.srcAttr.neighbors, edgeTriplet.dstAttr.neighbors)
@@ -109,11 +113,15 @@ object Node2vec extends Serializable {
           (s"$prevNodeId$currentNodeId", (srcNodeId, pathBuffer))
         }.join(edge2attr).map { case (edge, ((srcNodeId, pathBuffer), attr)) =>
           try {
-            val nextNodeIndex = GraphOps.drawAlias(attr.J, attr.q)
-            val nextNodeId = attr.dstNeighbors(nextNodeIndex)
-            pathBuffer.append(nextNodeId)
-
-            (srcNodeId, pathBuffer)
+            /* avoid null pointer exception. */
+            if (pathBuffer != null && pathBuffer.nonEmpty && attr.dstNeighbors != null && attr.dstNeighbors.nonEmpty) {
+              val nextNodeIndex = GraphOps.drawAlias(attr.J, attr.q)
+              val nextNodeId = attr.dstNeighbors(nextNodeIndex)
+              pathBuffer.append(nextNodeId)
+              (srcNodeId, pathBuffer)
+            } else {
+              (srcNodeId, pathBuffer)
+            }
           } catch {
             case e: Exception => throw new RuntimeException(e.getMessage)
           }
